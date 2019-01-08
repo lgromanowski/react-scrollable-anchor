@@ -13,10 +13,23 @@ class Manager {
   constructor() {
     this.anchors = {}
     this.forcedHash = false
+    this.forcedScroll = false;
     this.config = defaultConfig
+    this.hashChangeListeners = []
 
     this.scrollHandler = debounce(this.handleScroll, 100)
     this.forceHashUpdate = debounce(this.handleHashChange, 1)
+    this.triggerHashChangeEvent = (hash, affectHistory) => {
+      this.hashChangeListeners.forEach(fn => fn(hash, affectHistory))
+    }
+  }
+
+  onHashChange = (fn) => {
+    this.hashChangeListeners.push(fn);
+
+    return () => {
+      this.hashChangeListeners.splice(this.hashChangeListeners.indexOf(fn), 1);
+    }
   }
 
   addListeners = () => {
@@ -63,11 +76,15 @@ class Manager {
     const {offset, keepLastAnchorHash} = this.config
     const bestAnchorId = getBestAnchorGivenScrollLocation(this.anchors, offset)
 
-    if (bestAnchorId && getHash() !== bestAnchorId) {
+    if (this.forcedScroll) {
+      this.forcedScroll = false;
+    } else if (bestAnchorId && getHash() !== bestAnchorId) {
       this.forcedHash = true
       updateHash(bestAnchorId, false)
+      this.triggerHashChangeEvent(bestAnchorId, false)
     } else if (!bestAnchorId && !keepLastAnchorHash) {
       removeHash()
+      this.triggerHashChangeEvent('', false)
     }
   }
 
@@ -82,6 +99,7 @@ class Manager {
   goToSection = (id) => {
     let element = this.anchors[id]
     if (element) {
+      this.forcedScroll = true;
       jump(element, {
         duration: this.config.scrollDuration,
         offset: this.config.offset,
